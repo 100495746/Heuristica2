@@ -6,7 +6,7 @@ import constraint
 # -----------------------------------------------------------------------------
 N = 4
 
-# this simply Python script solves the N-queens problem, where N queens have to
+# this simple Python script solves the N-queens problem, where N queens have to
 # be located on a NxN chessboard such that there are not two queens threatening
 # each other. The following is a feasible solution of the 4-Queens problem:
 #
