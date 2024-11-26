@@ -3,6 +3,8 @@ Using Constraint Processing for solving a simple sum-words brain teaser
 """
 
 import constraint
+
+
 # pylint: disable=all
 
 # this simple Python script solves the following sum-word brain

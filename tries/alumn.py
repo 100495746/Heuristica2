@@ -2,7 +2,7 @@ from constraint import *
 # pylint: disable=all
 problem = Problem()
 
-# Se anyaden las variables al problema. Existen diferentes formas de hacerlo mediante las funciones addVariable
+# Se añaden las variables al problema. Existen diferentes formas de hacerlo mediante las funciones addVariable
 # y addVariables
 #
 # Ejemplos:
@@ -22,11 +22,14 @@ problem.addVariables(['A', 'Y', 'R', 'F'], [1, 2, 3])
 problem.addVariable('J', [2, 3])
 problem.addVariable('M', [3])
 
-# A continuacion se anyaden las restricciones del problema mediante la funcion addConstraint proporcionada por la libreria
+# A continuación se añaden las restricciones del problema mediante la función addConstraint proporcionada por la
+# libreria
 #
 # Ejemplos:
-# problem.addConstraint(lambda a, b: a > b, ('a', 'b'))		Crea una funcion lambda que recibe dos parametros que se corresponden
-# con los valores de las variables 'a' y 'b', y comprueba que 'a' es mayor que 'b'. Tambien se podria haber creado una funcion para
+# problem.addConstraint(lambda a, b: a > b, ('a', 'b'))
+# Crea una función lambda que recibe dos parámetros que se corresponden
+# con los valores de las variables 'a' y 'b', y comprueba que 'a' es mayor que 'b'.
+# También se podria haber creado una función para
 # comprobar este hecho:
 #
 # def greater(a, b):
@@ -50,12 +53,13 @@ problem.addConstraint(notEqual, ('A', 'R'))
 problem.addConstraint(lambda a, b: a != b, ('A', 'R'))
 
 
-# Por ultimo, la libreria ofrece la funcion AllDifferentConstraint que precisamente comprueba que el valor de una variable es diferente a las de las otras:
+# Por ultimo, la libreria ofrece la funcion AllDifferentConstraint que precisamente comprueba que el valor de una
+# variable es diferente a las de las otras:
 
 problem.addConstraint(AllDifferentConstraint(), ['A', 'R'])
 
 # Lo anterior, son tres formas diferentes de modelar la misma restriccion RA,R = [(1,2),(1,3),(2,1),(2,3),(3,1),(3,2)]
-# Ahora modelamos la restriccion de que Ruben y Felisa quieren trabajar en la misma parte RR,F={(1,1),(2,2),(3,3)}
+# Ahora modelamos la restricción de que Ruben y Felisa quieren trabajar en la misma parte RR,F={(1,1),(2,2),(3,3)}
 
 problem.addConstraint(lambda a, b: a == b, ('R', 'F'))
 
@@ -69,9 +73,9 @@ def consecutive(a, b):
 problem.addConstraint(consecutive, ('R', 'Y'))
 
 # Una vez modelado el problema, podemos recuperar una de las soluciones:
-
+print("1sol")
 print(problem.getSolution())
-
+print("\n")
 # o todas las soluciones:
 
 print(problem.getSolutions())
