@@ -1,0 +1,26 @@
+10
+(0,0) (14,14)
+(14,14) (0,0)
+(0,14) (14,0)
+(1,0) (14,13)
+(14,13) (1,0)
+(2,3) (13,13)
+(3,2) (12,12)
+(4,1) (11,11)
+(5,5) (10,10)
+(6,6) (9,0)
+B;B;B;B;B;B;B;B;B;B;B;B;B;B;B
+B;G;G;B;B;B;G;G;B;B;G;G;B;B;B
+B;G;A;B;B;A;G;A;B;B;G;A;B;B;B
+B;B;B;A;G;A;B;A;G;A;B;A;B;B;B
+B;B;A;G;G;G;A;G;G;G;A;G;B;B;B
+B;B;G;G;B;B;G;G;B;B;G;G;B;B;B
+B;A;B;B;B;A;B;B;B;A;B;B;A;B;B
+B;A;G;G;A;G;G;A;G;G;A;G;G;A;B
+B;B;A;G;G;G;A;G;G;G;A;G;G;A;B
+B;B;B;A;G;A;B;A;G;A;B;A;B;B;B
+B;B;B;B;A;A;B;B;A;A;B;B;B;B;B
+B;B;B;B;B;A;A;B;A;A;B;B;B;B;B
+B;B;B;B;B;B;A;A;A;A;B;B;B;B;B
+B;B;B;B;B;B;B;A;A;B;B;B;B;B;B
+B;B;B;B;B;B;B;B;B;B;B;B;B;B;B

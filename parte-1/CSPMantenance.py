@@ -1,20 +1,19 @@
-# pylint: disable=all
 import sys
 import constraint
+import time
 
 
 class Avion:
     def __init__(self, codigo):
-        self.id = int(codigo[0])
-        self.tipo = codigo[2:5]
-        self.restr = bool(codigo[6] == "T")
-        self._t1 = int(codigo[8:codigo.find("-", 8)])
-        self._t2 = int(codigo[codigo.find("-", 8) + 1:])
-        self.t1 = self._t1
-        self.t2 = self._t2
+        partes = codigo.split("-")
+        self.id = int(partes[0])
+        self.tipo = partes[1]
+        self.restr = partes[2] == 'T'
+        self.t1 = int(partes[3])
+        self.t2 = int(partes[4])
 
     def __str__(self):
-        return str(self.id)  + "-" + str(self.tipo) + "-" + str(self.restr)  + "-" + str(self.t1) + "-" + str(self.t2)
+        return str(self.id) + "-" + str(self.tipo) + "-" + str(self.restr) + "-" + str(self.t1) + "-" + str(self.t2)
 
 
 def lector(fichero):
@@ -23,151 +22,203 @@ def lector(fichero):
     return lineas
 
 
+def creador_aviones(l_codigos):
+    return [Avion(each) for each in l_codigos]
+
+
+def adyacentes(proposed, dimensiones, jmb):
+    occupied = 0
+    for each in set(proposed):
+        if (each[0], each[1] + 1) in proposed:
+            occupied += 1
+        if (each[0] + 1, each[1]) in proposed:
+            occupied += 1
+        if (each[0], each[1] - 1) in proposed:
+            occupied += 1
+        if (each[0] - 1, each[1]) in proposed:
+            occupied += 1
+
+        if jmb and occupied > 0: return False
+        if each[0] in [0, dimensiones] and each[1] in [0, dimensiones] and occupied >= 2:
+            return False
+        if ((each[0] in [0, dimensiones]) or (each[1] in [0, dimensiones])) and occupied >= 3:
+            return False
+        if occupied >= 4:
+            return False
+    return True
+
+
 def process_strings_to_dict(strings):
     talleres = {}
     for line in strings:
         key, coords = line.split(":")  # Separar la clave y las coordenadas
         key = key.strip()  # Limpiar espacios en la clave
-        # Convertir las coordenadas a tuplas
-        coordinates = [tuple(int(x) for x in coord.strip("()").split(",")) for coord in coords.strip().split()]
-        talleres[key] = coordinates
+        # Convertir las coordenadas a tuplas y almacenarlas en un set
+        coordinates = {tuple(int(x) for x in coord.strip("()").split(",")) for coord in coords.strip().split()}
+        talleres[key] = set(coordinates)
     return talleres
 
 
-def creador_aviones(l_codigos):
-    l_aviones = []
-    for each in l_codigos:
-        l_aviones.append(Avion(each))
-    return l_aviones
+def format_solution(solution, talleres, i):
+    formated_dictionary = {}
+    for key, value in solution.items():
+        avion_id = key.split("_")[0]  # Extrae el ID del avión
+        tipo = "STD" if value in talleres["STD"] else "SPC" if value in talleres["SPC"] else "PRK"
+        formated_dictionary.setdefault(avion_id, []).append(f"{tipo}{value}")
+
+    formatted_output = f"Solucion {i}: \n" + "\n".join(
+        f"{avion_id}: {' '.join(locations)}" for avion_id, locations in formated_dictionary.items()
+    )
+    print(formatted_output)
 
 
-def tareas_restantes(t, avion, talleres):
+def tareas1_completadas(avion, talleres, vals):
     """
-    Verifica si un taller puede asignarse basado en las tareas restantes del avión.
-    Reduce el número de tareas pendientes según corresponda.
+    Asegura que todos los aviones tengan T1 y T2 igual a 0 al final de las franjas.
     """
-    if t in talleres["SPC"]:
-        avion.t2 -= 1
+    counter = sum(1 for each in vals if each not in talleres["PRK"])
+    return counter - avion.t2 >= avion.t1
+
+
+def tareas2_completadas(avion, talleres, di, vals):
+    """
+    Asegura que todos los aviones tengan T1 y T2 igual a 0 al final de las franjas.
+    """
+    counter_2 = avion.t2
+    counter_1 = avion.t1
+    prk_count = 0
+    for each in vals:
+        if each in set(talleres["PRK"]):
+            prk_count += 1
+        elif each in set(talleres["STD"]):
+            counter_1 -= 1
+        elif each in set(talleres["SPC"]):
+            counter_2 -= 1
+
+    if di - prk_count < counter_1 + counter_2:
+        return False
+    if counter_2 > 0:
+        return False
+    if counter_1 > 0:
+        if counter_1 - (counter_2 - avion.t2) > 0:
+            return False
+    return counter_1 + counter_2 <= 0
+
+
+def tareas_2_primero(avion, talleres, vals):
+    # Si el avión no tiene restricciones, no se aplica la prioridad
+    if not avion.restr:
         return True
 
-    elif t in talleres["STD"]:
-        if avion.restr and avion.t2>0:
-            return False
-        else:
-            if avion.t1 > 0:
-                avion.t1 -= 1
-            return True
-    else:
-        return True
+    # Si el avión tiene restricciones, verificamos que todas las T2 se hagan antes de las T1
+    t2_left = avion.t2
+    t2_done = False
 
+    # Convertir talleres["SPC"] y talleres["STD"] en sets para mayor eficiencia
+    spc_set = set(talleres["SPC"])
+    std_set = set(talleres["STD"])
 
-def distancia1(t1, t2):
-    # Dos talleres son adyacentes si están a una distancia de 1 en ambas dimensiones
-    return abs(t1[0] - t2[0]) <= 1 and abs(t1[1] - t2[1]) <= 1
+    for val in vals:
+        if val in spc_set:
+            t2_left -= 1
+            if t2_left == 0:
+                t2_done = True  # Encontramos una tarea de tipo 2
+        elif val in std_set and not t2_done:
+            # Si encontramos una tarea de tipo 1 antes de una tarea de tipo 2, devolvemos False
+            return False
 
-
-def jmb_no_adyacentes(vars):
-    # usar esta en caso de ser necesario dividirlo por partes
-    for each in vars:
-        if (each[0], each[1] + 1) in vars:
-            return False
-        if (each[0] + 1, each[1]) in vars:
-            return False
-        if (each[0], each[1] - 1) in vars:
-            return False
-        if (each[0] - 1, each[1]) in vars:
-            return False
-        return True
-
-
-def adyacentes(vars, dimensiones, jmb):
-    occupied = 0
-    for each in vars:
-        if (each[0], each[1] + 1) in vars:
-            occupied += 1
-        if (each[0] + 1, each[1]) in vars:
-            occupied += 1
-        if (each[0], each[1] - 1) in vars:
-            occupied += 1
-        if (each[0] - 1, each[1]) in vars:
-            occupied += 1
-
-        if jmb and occupied > 0:
-            return False
-        elif (each[0] == 0 or each[0] == dimensiones) and (each[1] == 0 or each[1] == dimensiones) and occupied == 2:
-            return False
-        elif ((each[0] == 0 or each[0] == dimensiones) or (each[1] == 0 or each[1] == dimensiones)) and occupied == 3:
-            return False
-        elif occupied == 4:
-            return False
-        return True
-
-
-def no_mas_de_2(*variables):
-    for each in variables:
-        if variables.count(each) > 2:
-            return False
     return True
 
 
 def main():
+    start_time = time.time()
 
     if len(sys.argv) != 2:
         print("Uso: python CSPMaintenance.py <path maintenance>")
-        return 1
+        return
 
     fichero = sys.argv[1]
     lineas = lector(fichero)
-    # linea0: número de franjas horarias
-    # linea1: dimensiones matriz talleres
-    # linea2: posiciones talleres STD
-    # linea3: posiciones talleres SDC
-    # linea4: posiciones parking
-    # líneas 5 y en adelante: códigos aviones
     problem = constraint.Problem()
+
     franjas = int(lineas[0].split(":")[1].strip())
-    x, y = lineas[1].split("x")
-    dimensiones = (int(x), int(y))
+    dimensiones = tuple(map(int, lineas[1].split("x")))
     talleres = process_strings_to_dict(lineas[2:5])
+
     aviones = creador_aviones(lineas[5:])
     dicc_var = {franja: [] for franja in range(franjas)}
-    variables_jmb = {franja: [] for franja in range(franjas)}  # Guardar solo los JMB
+    variables_jmb = {franja: [] for franja in range(franjas)}
+    dicc_por_avion = {avion: [] for avion in aviones}
+
+    # Precompute the combined list of all available locations in talleres
+    all_locations = tuple(talleres["STD"] | talleres["SPC"] | talleres["PRK"])
 
     for avion in aviones:
         for franja in range(franjas):
             nueva_var = f"{avion}_{franja}"
-            problem.addVariable(nueva_var, talleres["STD"] + talleres["SPC"] + talleres["PRK"])
-            # Agregar la restricción para cada variable
-            problem.addConstraint(
-                    lambda t, av=avion: tareas_restantes(t, av, talleres), [nueva_var]
-                )
-
-
+            problem.addVariable(nueva_var, all_locations)  # Use precomputed list
             dicc_var[franja].append(nueva_var)
+            dicc_por_avion[avion].append(nueva_var)
+
             if avion.tipo == "JMB":
                 variables_jmb[franja].append(nueva_var)
 
-    for franja in range(franjas):
-        problem.addConstraint(no_mas_de_2, dicc_var[franja])
-        problem.addConstraint(lambda *vals: adyacentes(vals, dimensiones, False), dicc_var[franja])
+    for avion in aviones:
+        problem.addConstraint(
+            lambda *vals, av=avion, fr=franjas: tareas2_completadas(av, talleres, fr, vals),
+            dicc_por_avion[avion]
+        )
+        problem.addConstraint(
+            lambda *vals, av=avion: tareas_2_primero(av, talleres, vals),
+            dicc_por_avion[avion]
+        )
 
+    # Combine and batch application of time slot constraints
+    for franja in range(franjas):
+        vars_in_franja = dicc_var[franja]
+        problem.addConstraint(lambda *vals: adyacentes(vals, dimensiones, False), vars_in_franja)
+
+    # Combine constraints for JMB airplanes
     for franja, variables in variables_jmb.items():
-        if variables:  # Solo aplica si hay variables JMB en esta franja
+        if variables:
             problem.addConstraint(constraint.AllDifferentConstraint(), variables)
             problem.addConstraint(lambda *vals: adyacentes(vals, dimensiones, True), variables)
 
-    formated_dictionary = {}
-    solution = problem.getSolution()
-    print(solution)
+    for franja in dicc_var.keys():
+        # Para cada franja, verifique que ningún taller tenga más de 2 aviones asignados
+        # Unificar todos los talleres en un set
+        problem.addConstraint(
+            lambda *vals: all(vals.count(taller) <= 2 for taller in set(vals)), dicc_var[franja])
 
-    for each in solution.keys():
-        key_prefix = each.split("-")[0]
-        if key_prefix in formated_dictionary:
-            formated_dictionary[key_prefix].append(solution[each])
-        else:
-            formated_dictionary[key_prefix] = [solution[each]]
+    one_solution = problem.getSolution()
+    if one_solution is None:
+        print("No hay soluciones para este caso")
+        return
 
-    print(formated_dictionary)
+    format_solution(one_solution, talleres, 1)
+    print("Encontrando otras soluciones...")
+    solutions = problem.getSolutionIter()
+
+    generated_solutions = set()
+    i = 0
+    listed = []
+
+    for solution in solutions:
+        solution_tuple = tuple(solution.items())
+        if solution_tuple not in generated_solutions:
+            i += 1
+            generated_solutions.add(solution_tuple)
+            if i < 9:
+                listed.append((solution, talleres, i))
+
+    print(f"N sol: {i} \n")
+
+    for each in listed:
+        format_solution(*each)
+
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"\n\nTOTAL TIME: {total_time}")
 
 
 if __name__ == "__main__":

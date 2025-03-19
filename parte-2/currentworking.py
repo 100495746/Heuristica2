@@ -7,8 +7,7 @@ import time
 class Context:
     def __init__(self, map_grid, heuristic, obstaculos):
         self.map_grid = map_grid
-        self.reserved = {'cells': set(), 'edges': set(), "reached": set()}
-        self.current_cost = 0
+        self.reserved = {'cells': set(), 'edges': set()}
         self.closed_set = set()
         self.heuristic = heuristic
         self.h_inicial = 0
@@ -92,67 +91,26 @@ def heuristica_manhattan(start, goal, *args):
 
 
 def heuristica_euclides(start, goal, *args):
-    return int(math.sqrt((start[0] - goal[0]) ** 2 + (start[1] - goal[1]) ** 2))
+    return math.sqrt((start[0] - goal[0]) ** 2 + (start[1] - goal[1]) ** 2)
 
 
-def heuristica_propia(start, goal, context, t):
+def heuristica_propia(start, goal, obstaculos, t=0):
+    """
+    Heurística simplificada basada en Manhattan con penalización por obstáculos.
+    """
     # Calcular distancia Manhattan
     manhattan = heuristica_manhattan(start, goal)
 
-    # Penalización por obstáculos
-    penalizacion = 0
+    # Penalización: Obstáculos
 
-    # Coordenadas del nodo actual
-    x, y = start
+    penalizacion = sum(2 for y in range(min(start[1], goal[1]) + 1, max(start[1], goal[1]))
+                       if (start[0], y) in obstaculos)
 
-    # Coordenadas del objetivo
-    gx, gy = goal
+    penalizacion += sum(2 for x in range(min(start[0], goal[0]) + 1, max(start[0], goal[0]))
+                        if (x, start[1]) in obstaculos)
 
-    # Definir qué significa "bloqueado"
-    blocked = lambda coord: coord in context.obstaculos or (coord[0], coord[1], t + 1) in context.reserved["cells"] \
-                            or (coord[0], coord[1]) in context.reserved["reached"]
-
-    # Si el objetivo está por debajo del nodo
-    if gy > y:
-        if blocked((x, y + 1)):  # Bloqueado arriba
-            if x > gx:
-                if blocked((x - 1, y)):  # Bloqueado también a la izquierda
-                    penalizacion += 1
-                if blocked((gx + 1, gy)) and blocked((gx, gy - 1)):
-                    penalizacion += 1
-
-            elif x < gx:
-                if blocked((x + 1, y)):  # Bloqueado también a la derecha
-                    penalizacion += 1
-                if blocked((gx - 1, gy)) and blocked((gx, gy - 1)):
-                    penalizacion += 1
-            # Si el objetivo está bloqueado directamente abajo
-
-        # Penalización cuando el objetivo está por encima del nodo (y más a la izquierda)
-    elif gy < y:
-        if blocked((x, y - 1)):  # Bloqueado arriba
-            if x > gx:
-                if blocked((x - 1, y)):  # Bloqueado también a la izquierda
-                    penalizacion += 1
-                if blocked((gx + 1, gy)) and blocked((gx, gy + 1)):
-                    penalizacion += 1
-            elif x < gx:
-                if blocked((x + 1, y)):  # Bloqueado también a la derecha
-                    penalizacion += 1
-                if blocked((gx - 1, gy)) and blocked((gx, gy + 1)):
-                    penalizacion += 1
-
-
-    # Penalizar la cercanía de obstáculos si están directamente en la misma dirección
-    else:
-        if gx > x:
-            if blocked((gx - 1, gy)):
-                penalizacion += 1
-        else:
-            if blocked((gx + 1, gy)):
-                penalizacion += 1
-
-    return manhattan + penalizacion
+    # Combinar penalizaciones y distancia Manhattan
+    return ((penalizacion + manhattan * 2) + t) * 0.25
 
 
 def camino(node):
@@ -189,52 +147,44 @@ def formatter(path):
 
 def expand(current, context, end):
     neighbors = []
-    moves = [(0, 1), (0, -1), (1, 0), (-1, 0), (0, 0)]
+    moves = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
     node_creator(context, current, end, moves, neighbors)
+    wait_posible(context, current, end, neighbors)
 
     return neighbors
 
 
 def wait_posible(context, current, end, neighbors):
     x, y = current.coord
-    if context.map_grid[(x, y)] == "B":
-        wait_heuristic = context.heuristic((x, y), end, context, current.g + 1)
+    if context.map_grid[(x, y)] == "B" and (x, y, current.g + 1) not in context.reserved['cells']:
+        wait_heuristic = context.heuristic((x, y), end, context.map_grid, current.g + 1)
         neighbors.append(NODE((x, y), current.g + 1, wait_heuristic, current))
 
 
 def node_creator(context, current, end, moves, neighbors):
-    x, y = current.coord
     for dx, dy in moves:
         nx, ny = current.coord[0] + dx, current.coord[1] + dy
-
-        heuristic = context.heuristic((nx, ny), end, context, current.g)
-        if (x, y) == (nx, ny):
-            wait_posible(context, current, end, neighbors)
-
         if context.is_valid_cell((nx, ny), current.g):
             neighbors.append(NODE(
                 (nx, ny),
                 current.g + 1,
-                heuristic,
+                context.heuristic((nx, ny), end, context.map_grid),
                 current
             ))
 
 
 def astar(start, goal, context):
-    context.h_inicial = max(context.h_inicial, context.heuristic(start, goal, context, 0))
-    start_node = NODE(start, 0, context.h_inicial, None)
+    if context.h_inicial < context.heuristic(start, goal, context.obstaculos):
+        context.h_inicial = context.heuristic(start, goal, context.obstaculos)
+    context.h_inicial = context.heuristic(start, goal, context.obstaculos)
+    start_node = NODE(start, 0, context.heuristic(start, goal, context.obstaculos), None)
     openlist = MinHeap()
     openlist.push(start_node)
     context.closed_set.clear()  # Limpiar nodos cerrados al inicio de cada búsqueda
 
     while openlist:
         current = openlist.pop()
-        if context.reserved["reached"]:
-            if current.g >= context.current_cost:
-                context.current_cost += 1
-                for x, y in context.reserved["reached"]:
-                    context.reserved["cells"].add((x, y, context.current_cost))
 
         if current.coord == goal:
             return camino(current), context.expanded, current.g
@@ -244,11 +194,6 @@ def astar(start, goal, context):
 
         context.closed_set.add((current.coord[0], current.coord[1], current.g))
         context.expanded += 1
-        if context.reserved["reached"]:
-            if current.g >= context.current_cost:
-                context.current_cost += 1
-                for x, y in context.reserved["reached"]:
-                    context.reserved["cells"].add((x, y, context.current_cost + 1))
 
         neighbors = expand(current, context, goal)
         for n in neighbors:
@@ -345,11 +290,8 @@ def convertir_a_diccionario(map_grid):
 
 
 def csv_reader(csv_path):
-    st_end = []
-    ends = set()
-    starts = set()
+    destiny = []
     map_grid = []
-    i = 1
     try:
         with open(csv_path, newline='') as csvfile:
             reader = csv.reader(csvfile)
@@ -364,24 +306,14 @@ def csv_reader(csv_path):
                     for each in row:
                         new_val = int(each.replace("(", "").replace(")", ""))
                         coord.append(new_val)
-                    if (coord[2], coord[3]) in ends:
-                        print(f"Hay aviones con mismo destino {(coord[2], coord[3])} linea: {i + 1}")
-                        sys.exit(-11)
-                    if (coord[1], coord[2]) in starts:
-                        print(f"Hay aviones con mismo inicio {(coord[0], coord[1])} linea: {i + 1}")
-                        sys.exit(-11)
-                    ends.add((coord[2], coord[3]))
-                    starts.add((coord[1], coord[2]))
-                    st_end.append(((coord[0], coord[1]), (coord[2], coord[3])))
-
+                    destiny.append(((coord[0], coord[1]), (coord[2], coord[3])))
                 else:
                     map_grid.append(row[0].split(";"))
-                i += 1
-        validar_limites(st_end, map_grid)
-        validar_traversabilidad(st_end, map_grid)
+        validar_limites(destiny, map_grid)
+        validar_traversabilidad(destiny, map_grid)
 
         # Convertir map_grid a diccionario antes de devolverlo
-        return st_end, convertir_a_diccionario(map_grid)
+        return destiny, convertir_a_diccionario(map_grid)
     except Exception as error:
         print(f"Error al leer el archivo: {error}")
         sys.exit(-9)
@@ -409,7 +341,6 @@ def main():
     displays = []
     makespan = 0
     expanded = 0
-    paths = []
 
     # Crear el contexto
     context = Context(map_grid, heuristic, obstaculos)
@@ -420,16 +351,9 @@ def main():
             print("No se encontró solución para el avión", i + 1)
             return
         reservar_ruta(path, context.reserved)
-        context.reserved["reached"].add((gx, gy))
-        paths.append(path)
-        expanded += expanded
+        displays.append(formatter(path))
         makespan = max(makespan, cost)
-        context.current_cost = makespan
-
-    for each in paths:
-        while len(each) < makespan + 1:
-            each.append(each[-1])
-        displays.append(formatter(each))
+        expanded += expanded
 
     final = time.time()
     total_time = final - start_time
